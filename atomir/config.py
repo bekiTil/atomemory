@@ -88,3 +88,18 @@ class Settings:
 
 # A single shared instance importers use: `from atomir.config import settings`.
 settings = Settings()
+
+
+def make_qdrant_client():
+    """Build a QdrantClient from settings: server mode if a URL is set, else
+    embedded/local at the configured path (zero-ops).
+
+    The qdrant SDK is imported lazily so merely importing this config module
+    never requires the optional provider dependency (offline/fake path stays
+    dependency-free). Returns a `qdrant_client.QdrantClient`.
+    """
+    from qdrant_client import QdrantClient
+
+    if settings.store_url:
+        return QdrantClient(url=settings.store_url)
+    return QdrantClient(path=settings.store_path)
