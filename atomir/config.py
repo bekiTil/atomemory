@@ -1,0 +1,90 @@
+"""Centralized, vendor-neutral configuration.
+
+12-factor (factor III): all config that varies between deploys — keys, model
+names, URLs, paths — is read from the environment, never hardcoded. A local
+`.env` file is loaded for convenience in development.
+
+The design exposes THREE independent, swappable provider slots — `llm`,
+`embedder`, and `vector_store` — each as a mem0-style `{provider, config}`
+block. No vendor is privileged: whichever providers the environment selects are
+the ones used. The first-run example happens to be Groq + Jina + Qdrant, but
+each is just one value of an interface that gets formalized in later steps.
+
+Defaults favor running with NO external keys: both the LLM and embedder default
+to the `fake` backend so the system is testable offline.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+
+from dotenv import load_dotenv
+
+# Load .env into os.environ if present (no error if the file is missing).
+load_dotenv()
+
+
+def _env(name: str, default: str = "") -> str:
+    return os.environ.get(name, default)
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Immutable snapshot of configuration read from the environment."""
+
+    # --- LLM slot ---------------------------------------------------------
+    # Field names stay vendor-neutral: `llm_backend` selects the impl, and the
+    # key/model are read into generic fields. `groq` is just the first example.
+    llm_backend: str = field(default_factory=lambda: _env("LLM_BACKEND", "fake"))
+    llm_api_key: str = field(default_factory=lambda: _env("LLM_API_KEY"))
+    model: str = field(default_factory=lambda: _env("MODEL", "llama-3.3-70b-versatile"))
+
+    # --- Embedder slot ----------------------------------------------------
+    # Same neutrality: `jina` is the first example, but nothing here names it.
+    embed_backend: str = field(default_factory=lambda: _env("EMBED_BACKEND", "fake"))
+    embed_api_key: str = field(default_factory=lambda: _env("EMBED_API_KEY"))
+    # Dimension travels WITH the embedder choice (Jina v3 = 1024).
+    embed_dim: int = field(default_factory=lambda: int(_env("EMBED_DIM", "1024")))
+
+    # --- Vector store slot ------------------------------------------------
+    # Selected by `store_backend` like the other two slots (no hardcoded vendor).
+    store_backend: str = field(default_factory=lambda: _env("STORE_BACKEND", "qdrant"))
+    collection: str = field(default_factory=lambda: _env("COLLECTION", "atomir_memories"))
+    # `url`/`path` are generic connection params (Qdrant uses both today).
+    store_url: str = field(default_factory=lambda: _env("STORE_URL"))
+    store_path: str = field(default_factory=lambda: _env("STORE_PATH", "./qdrant_data"))
+
+    # --- Vendor-neutral provider blocks (mem0-style {provider, config}) ---
+    # These are how the engine will eventually select implementations without
+    # ever naming a vendor. The factories that consume them arrive in Step 5.5.
+
+    @property
+    def llm(self) -> dict:
+        return {
+            "provider": self.llm_backend,
+            "config": {"api_key": self.llm_api_key, "model": self.model},
+        }
+
+    @property
+    def embedder(self) -> dict:
+        return {
+            "provider": self.embed_backend,
+            "config": {"api_key": self.embed_api_key, "embed_dim": self.embed_dim},
+        }
+
+    @property
+    def vector_store(self) -> dict:
+        return {
+            "provider": self.store_backend,
+            "config": {
+                "url": self.store_url,
+                "path": self.store_path,
+                "collection": self.collection,
+                "embed_dim": self.embed_dim,
+            },
+        }
+
+
+# A single shared instance importers use: `from atomir.config import settings`.
+settings = Settings()

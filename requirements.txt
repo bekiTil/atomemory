@@ -1,0 +1,5 @@
+# Core runtime only. Provider SDKs (groq, jina, etc.) become OPTIONAL EXTRAS
+# in Step 12 packaging — the core must install and run (fake backends) with
+# nothing vendor-specific here.
+python-dotenv>=1.0
+numpy>=1.26

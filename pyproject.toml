@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Distribution (PyPI) name matches the import package `atomir`.
+name = "atomir"
+version = "0.0.0"
+description = "Atomic memory infrastructure for agents — atomic facts on write, atomic sub-question decomposition on read."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "bekiTil" }]
+dependencies = [
+    "python-dotenv>=1.0",
+    "numpy>=1.26",
+]
+
+# Provider SDKs are OPTIONAL EXTRAS (fleshed out in Step 12). Core stays neutral.
+[project.optional-dependencies]
+# groq = ["groq>=0.11"]
+# jina = ["requests>=2.31"]
+# qdrant = ["qdrant-client>=1.9"]
+
+[tool.setuptools]
+packages = ["atomir"]
