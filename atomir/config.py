@@ -47,6 +47,13 @@ class Settings:
     # Dimension travels WITH the embedder choice (Jina v3 = 1024).
     embed_dim: int = field(default_factory=lambda: int(_env("EMBED_DIM", "1024")))
 
+    # --- Reconciler tuning ------------------------------------------------
+    # Write-side similarity gate (DECISION #1a): a candidate whose nearest
+    # existing fact scores below this is ADDed directly, without asking the LLM.
+    reconcile_min_sim: float = field(
+        default_factory=lambda: float(_env("RECONCILE_MIN_SIM", "0.6"))
+    )
+
     # --- Vector store slot ------------------------------------------------
     # Selected by `store_backend` like the other two slots (no hardcoded vendor).
     store_backend: str = field(default_factory=lambda: _env("STORE_BACKEND", "qdrant"))
