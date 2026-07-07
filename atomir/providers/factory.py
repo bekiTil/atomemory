@@ -10,42 +10,48 @@ changes (DECISION #6).
 
 from __future__ import annotations
 
-from atomir.embeddings import FakeEmbedder, JinaEmbedder
-from atomir.llm import FakeLLM, GroqLLM
 from atomir.providers.embedder_base import Embedder
 from atomir.providers.llm_base import LLM
 
+# The concrete provider classes are imported LAZILY inside the registry builders
+# below. That keeps this module's top level free of `atomir.llm` /
+# `atomir.embeddings`, avoiding a circular import when those packages are
+# imported before `atomir.providers` is fully initialized.
+
 
 class LLMFactory:
-    # provider name -> class. Groq is the FIRST impl, not the only one.
-    _REGISTRY: dict[str, type[LLM]] = {
-        "fake": FakeLLM,
-        "groq": GroqLLM,
-    }
+    @staticmethod
+    def _registry() -> dict[str, type[LLM]]:
+        from atomir.llm import FakeLLM, GroqLLM  # Groq is the FIRST impl, not the only one
+
+        return {"fake": FakeLLM, "groq": GroqLLM}
 
     @classmethod
     def create(cls, cfg: dict) -> LLM:
+        registry = cls._registry()
         provider = cfg.get("provider")
-        if provider not in cls._REGISTRY:
+        if provider not in registry:
             raise ValueError(
                 f"Unknown LLM provider {provider!r}. "
-                f"Valid providers: {sorted(cls._REGISTRY)}"
+                f"Valid providers: {sorted(registry)}"
             )
-        return cls._REGISTRY[provider].from_config(cfg.get("config", {}))
+        return registry[provider].from_config(cfg.get("config", {}))
 
 
 class EmbedderFactory:
-    _REGISTRY: dict[str, type[Embedder]] = {
-        "fake": FakeEmbedder,
-        "jina": JinaEmbedder,
-    }
+    @staticmethod
+    def _registry() -> dict[str, type[Embedder]]:
+        from atomir.embeddings import FakeEmbedder, JinaEmbedder
+
+        return {"fake": FakeEmbedder, "jina": JinaEmbedder}
 
     @classmethod
     def create(cls, cfg: dict) -> Embedder:
+        registry = cls._registry()
         provider = cfg.get("provider")
-        if provider not in cls._REGISTRY:
+        if provider not in registry:
             raise ValueError(
                 f"Unknown embedder provider {provider!r}. "
-                f"Valid providers: {sorted(cls._REGISTRY)}"
+                f"Valid providers: {sorted(registry)}"
             )
-        return cls._REGISTRY[provider].from_config(cfg.get("config", {}))
+        return registry[provider].from_config(cfg.get("config", {}))
