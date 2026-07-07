@@ -13,11 +13,12 @@ import urllib.error
 import urllib.request
 
 from atomir.llm.parsing import extract_json
+from atomir.providers.llm_base import LLM
 
 _GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
-class GroqLLM:
+class GroqLLM(LLM):
     """Calls the Groq chat API. Requires an API key."""
 
     def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile") -> None:
@@ -28,6 +29,13 @@ class GroqLLM:
             )
         self.api_key = api_key
         self.model = model
+
+    @classmethod
+    def from_config(cls, config: dict) -> "GroqLLM":
+        return cls(
+            api_key=config.get("api_key", ""),
+            model=config.get("model", "llama-3.3-70b-versatile"),
+        )
 
     def _chat(self, system: str, user: str, json_mode: bool) -> str:
         body: dict = {

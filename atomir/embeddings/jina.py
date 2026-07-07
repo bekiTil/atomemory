@@ -15,10 +15,12 @@ import json
 import urllib.error
 import urllib.request
 
+from atomir.providers.embedder_base import Embedder
+
 _JINA_URL = "https://api.jina.ai/v1/embeddings"
 
 
-class JinaEmbedder:
+class JinaEmbedder(Embedder):
     """Calls the Jina embeddings API. Requires an API key."""
 
     def __init__(
@@ -36,6 +38,14 @@ class JinaEmbedder:
         self.api_key = api_key
         self.embed_dim = embed_dim
         self.model = model
+
+    @classmethod
+    def from_config(cls, config: dict) -> "JinaEmbedder":
+        return cls(
+            api_key=config.get("api_key", ""),
+            embed_dim=config.get("embed_dim", 1024),
+            model=config.get("model", "jina-embeddings-v3"),
+        )
 
     def _embed(self, text: str, task: str) -> list[float]:
         if not text or not text.strip():

@@ -11,18 +11,24 @@ from __future__ import annotations
 
 import re
 
+from atomir.providers.llm_base import LLM
+
 
 def _split_sentences(text: str) -> list[str]:
     parts = re.split(r"(?<=[.!?])\s+|\n+", text.strip())
     return [p.strip() for p in parts if p.strip()]
 
 
-class FakeLLM:
+class FakeLLM(LLM):
     """Deterministic stand-in LLM. Runs with no key, no network."""
 
     def __init__(self, canned: dict | str | None = None) -> None:
         # canned dict -> returned by chat_json; canned str -> returned by chat_text.
         self.canned = canned
+
+    @classmethod
+    def from_config(cls, config: dict) -> "FakeLLM":
+        return cls()
 
     def chat_json(self, system: str, user: str) -> dict:
         if isinstance(self.canned, dict):

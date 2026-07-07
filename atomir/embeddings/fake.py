@@ -15,12 +15,18 @@ import hashlib
 import math
 import random
 
+from atomir.providers.embedder_base import Embedder
 
-class FakeEmbedder:
+
+class FakeEmbedder(Embedder):
     """Deterministic hash-based embedder for offline development and tests."""
 
     def __init__(self, embed_dim: int = 1024) -> None:
         self.embed_dim = embed_dim
+
+    @classmethod
+    def from_config(cls, config: dict) -> "FakeEmbedder":
+        return cls(embed_dim=config.get("embed_dim", 1024))
 
     def _embed(self, text: str) -> list[float]:
         # Empty / whitespace-only text has no content to embed -> zero vector.
