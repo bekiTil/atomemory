@@ -7,6 +7,11 @@ linear scan over a flat list — and is expected to be swapped for Qdrant (Step 
 
 Every method filters by `user_id`: all tenants share one flat list, so isolation
 is the store's responsibility on every read, write, and delete.
+
+DURABILITY: this backend is NOT crash-safe — `_save` rewrites the whole file
+with no atomic replace or fsync, so a crash mid-write can corrupt or truncate it.
+Dev/test only. For durable storage use a real DB backend (e.g. Qdrant), whose
+persistence guarantees come from the database itself.
 """
 
 from __future__ import annotations

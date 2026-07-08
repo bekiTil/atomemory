@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from atomir.atomic_read import atomic_search
 from atomir.extractor import extract_facts
+from atomir.locking import KeyedLock
 from atomir.providers.embedder_base import Embedder
 from atomir.providers.llm_base import LLM
 from atomir.reconciler import reconcile
@@ -31,23 +32,29 @@ class MemoryService:
         self.llm = llm
         self.embedder = embedder
         self.reconcile_min_sim = reconcile_min_sim
+        # Serializes a single user's writes (reconcile is read-modify-write);
+        # DECISION #5: simple per-user lock now, full transactions deferred.
+        self._locks = KeyedLock()
 
     def add(self, user_id: str, text: str) -> dict:
         """Extract atomic facts from `text` and reconcile each into memory."""
         operations: list[dict] = []
         facts: list[dict] = []
-        for candidate in extract_facts(self.llm, text):
-            decision = reconcile(
-                self.store,
-                self.llm,
-                self.embedder,
-                user_id,
-                candidate,
-                min_sim=self.reconcile_min_sim,
-            )
-            operations.append(decision)
-            if decision.get("fact"):
-                facts.append(decision["fact"])
+        # Per-user lock so concurrent adds for the SAME user can't both read the
+        # old state and both ADD; different users proceed in parallel.
+        with self._locks.get(user_id):
+            for candidate in extract_facts(self.llm, text):
+                decision = reconcile(
+                    self.store,
+                    self.llm,
+                    self.embedder,
+                    user_id,
+                    candidate,
+                    min_sim=self.reconcile_min_sim,
+                )
+                operations.append(decision)
+                if decision.get("fact"):
+                    facts.append(decision["fact"])
         return {"operations": operations, "facts": facts}
 
     def search(
@@ -62,7 +69,9 @@ class MemoryService:
         return self.store.all(user_id)
 
     def delete(self, user_id: str, fact_id: str) -> bool:
-        return self.store.delete(user_id, fact_id)
+        with self._locks.get(user_id):
+            return self.store.delete(user_id, fact_id)
 
     def reset(self, user_id: str) -> bool:
-        return self.store.clear(user_id)
+        with self._locks.get(user_id):
+            return self.store.clear(user_id)
