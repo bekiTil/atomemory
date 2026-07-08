@@ -53,6 +53,20 @@
     "expect_retrieved": ["dana"]
   },
   {
+    "id": "hard_distractor_multihop",
+    "type": "MULTI_HOP",
+    "history": [
+      "Dana Lopez leads my engineering team.",
+      "I'm working on Project Atlas.",
+      "Project Atlas is a data-pipeline rewrite.",
+      "I emailed the finance department last Tuesday.",
+      "I prefer afternoon meetings.",
+      "My favorite language is Python."
+    ],
+    "query": "who should I email about my project?",
+    "expect_retrieved": ["dana"]
+  },
+  {
     "id": "absence_no_hallucination",
     "type": "ABSENCE",
     "history": ["I really like coffee."],
