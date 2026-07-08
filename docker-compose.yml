@@ -9,7 +9,7 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     depends_on:
       - qdrant
     # Store is always the Qdrant SERVICE below. Everything else falls back to the
