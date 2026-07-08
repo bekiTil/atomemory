@@ -1,0 +1,70 @@
+[
+  {
+    "id": "add_basic",
+    "type": "ADD",
+    "history": ["Hi there! I'm vegetarian and I love hiking on weekends."],
+    "expect_facts": ["vegetarian", "hik"]
+  },
+  {
+    "id": "dedup_noop",
+    "type": "NOOP",
+    "history": ["I live in Boston.", "By the way, just so you know, I live in Boston."],
+    "expect_facts": ["boston"],
+    "expect_count": 1
+  },
+  {
+    "id": "update_employer",
+    "type": "UPDATE",
+    "history": ["I work at Acme Corp.", "I switched jobs — I now work at Globex, I don't work at Acme anymore."],
+    "expect_facts": ["globex"],
+    "expect_absent": ["acme"]
+  },
+  {
+    "id": "update_role",
+    "type": "UPDATE",
+    "history": ["I'm a junior engineer.", "I got promoted — I'm a senior engineer now, no longer junior."],
+    "expect_facts": ["senior"],
+    "expect_absent": ["junior"]
+  },
+  {
+    "id": "multi_fact_retention",
+    "type": "RETENTION",
+    "history": ["I'm allergic to shellfish. I have a dog named Rex. I drive a Tesla."],
+    "expect_facts": ["shellfish", "rex", "tesla"]
+  },
+  {
+    "id": "delete",
+    "type": "DELETE",
+    "history": ["I'm allergic to peanuts.", "Great news: my peanut allergy is gone, I'm no longer allergic to peanuts."],
+    "expect_absent": ["peanut"]
+  },
+  {
+    "id": "distractor_retrieval",
+    "type": "DISTRACTOR",
+    "history": ["My manager is Dana Lopez.", "I emailed the finance team yesterday.", "I'm working on Project Atlas."],
+    "query": "who leads my team?",
+    "expect_retrieved": ["dana"]
+  },
+  {
+    "id": "multi_hop",
+    "type": "MULTI_HOP",
+    "history": ["Dana Lopez leads my engineering team.", "I'm working on Project Atlas.", "I prefer afternoon meetings."],
+    "query": "who should I email about my project?",
+    "expect_retrieved": ["dana"]
+  },
+  {
+    "id": "absence_no_hallucination",
+    "type": "ABSENCE",
+    "history": ["I really like coffee."],
+    "query": "what car do I drive?",
+    "expect_not_retrieved": ["tesla", "honda", "toyota", "bmw"],
+    "judge": "The answer must state that the user's car is unknown / not in memory. It must NOT invent a car."
+  },
+  {
+    "id": "constraint_in_recommendation",
+    "type": "CONSTRAINT",
+    "history": ["I'm vegetarian.", "I dislike spicy food."],
+    "query": "suggest a dinner dish for me",
+    "judge": "The suggested dish must be vegetarian (no meat, poultry, or fish) AND not spicy. If it violates either, fail."
+  }
+]
