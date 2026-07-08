@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 # Distribution (PyPI) name matches the import package `atomir`.
 name = "atomir"
-version = "0.0.0"
+version = "0.1.0"
 description = "Atomic memory infrastructure for agents — atomic facts on write, atomic sub-question decomposition on read."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,11 +16,16 @@ dependencies = [
     "numpy>=1.26",
 ]
 
-# Provider SDKs are OPTIONAL EXTRAS (fleshed out in Step 12). Core stays neutral.
+# Optional extras keep the core lean; install only what a deployment uses.
+# groq/jina call their HTTP APIs over stdlib urllib, so they need NO SDK — the
+# extras exist for a consistent install story and forward compatibility.
 [project.optional-dependencies]
-# groq = ["groq>=0.11"]
-# jina = ["requests>=2.31"]
-# qdrant = ["qdrant-client>=1.9"]
+groq = []
+jina = []
+qdrant = ["qdrant-client>=1.7"]
+api = ["fastapi>=0.100", "uvicorn[standard]>=0.23"]
+all = ["qdrant-client>=1.7", "fastapi>=0.100", "uvicorn[standard]>=0.23"]
 
-[tool.setuptools]
-packages = ["atomir"]
+# Discover atomir and ALL its subpackages (stores, llm, embeddings, providers).
+[tool.setuptools.packages.find]
+include = ["atomir*"]

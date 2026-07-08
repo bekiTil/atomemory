@@ -1,0 +1,14 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+*.egg-info
+build
+dist
+.env
+qdrant_data
+*.json
+!eval/*.json
+atomic_memory_build_spec.md
+claude_code_prompts.md

@@ -1,0 +1,31 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - qdrant
+    # Store is always the Qdrant SERVICE below. Everything else falls back to the
+    # offline `fake` backends, so `docker compose up` works with NO keys — set
+    # LLM_/EMBED_ vars (host env or a local .env) to run real providers.
+    environment:
+      STORE_BACKEND: qdrant
+      STORE_URL: http://qdrant:6333
+      COLLECTION: ${COLLECTION:-atomir_memories}
+      LLM_BACKEND: ${LLM_BACKEND:-fake}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      MODEL: ${MODEL:-llama-3.3-70b-versatile}
+      EMBED_BACKEND: ${EMBED_BACKEND:-fake}
+      EMBED_API_KEY: ${EMBED_API_KEY:-}
+      EMBED_DIM: ${EMBED_DIM:-1024}
+      RECONCILE_MIN_SIM: ${RECONCILE_MIN_SIM:-0.6}
+
+volumes:
+  qdrant_data:
