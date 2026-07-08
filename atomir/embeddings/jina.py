@@ -15,6 +15,7 @@ import json
 import urllib.error
 import urllib.request
 
+from atomir._http import request_bytes
 from atomir.providers.embedder_base import Embedder
 
 _JINA_URL = "https://api.jina.ai/v1/embeddings"
@@ -71,8 +72,7 @@ class JinaEmbedder(Embedder):
             },
         )
         try:
-            with urllib.request.urlopen(req) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
+            body = json.loads(request_bytes(req).decode("utf-8"))
         except urllib.error.HTTPError as e:
             raise RuntimeError(
                 f"Jina embedding request failed: {e.code} {e.reason}"

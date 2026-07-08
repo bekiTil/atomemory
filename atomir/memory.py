@@ -16,6 +16,11 @@ from atomir.providers.llm_base import LLM
 from atomir.reconciler import reconcile
 from atomir.store_base import MemoryStore
 
+_COMPOSE_SYSTEM = (
+    "Answer the user's question using ONLY the facts provided. If the facts do "
+    "not contain the answer, say you don't know — never invent details. Be concise."
+)
+
 
 class MemoryService:
     """Stable seam over the atomic write/read engines. Backend-injected."""
@@ -60,10 +65,24 @@ class MemoryService:
     def search(
         self, user_id: str, query: str, k: int = 6, decompose: bool = True
     ) -> dict:
-        """Answer a query atomically: {subquestions, results}."""
+        """Retrieve facts for a query atomically: {subquestions, results}."""
         return atomic_search(
             self.store, self.llm, self.embedder, user_id, query, k=k, decompose=decompose
         )
+
+    def answer(
+        self, user_id: str, query: str, k: int = 6, decompose: bool = True
+    ) -> dict:
+        """Retrieve, then COMPOSE a final answer from the facts using the LLM.
+
+        Returns {answer, subquestions, results}. Grounded: the LLM is told to use
+        only the retrieved facts and to say it doesn't know otherwise. `search`
+        (facts only) remains the default; this is the opt-in composed variant.
+        """
+        found = self.search(user_id, query, k=k, decompose=decompose)
+        context = "; ".join(r["text"] for r in found["results"]) or "(no relevant facts)"
+        answer = self.llm.chat_text(_COMPOSE_SYSTEM, f"FACTS: {context}\nQUESTION: {query}")
+        return {"answer": answer, "subquestions": found["subquestions"], "results": found["results"]}
 
     def get_all(self, user_id: str) -> list[dict]:
         return self.store.all(user_id)

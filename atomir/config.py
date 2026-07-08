@@ -50,8 +50,10 @@ class Settings:
     # --- Reconciler tuning ------------------------------------------------
     # Write-side similarity gate (DECISION #1a): a candidate whose nearest
     # existing fact scores below this is ADDed directly, without asking the LLM.
+    # Tuned via eval/tune.py: sits between measured unrelated (~0.45) and
+    # same-attribute (~0.60) similarity on Jina; re-tune per embedder.
     reconcile_min_sim: float = field(
-        default_factory=lambda: float(_env("RECONCILE_MIN_SIM", "0.6"))
+        default_factory=lambda: float(_env("RECONCILE_MIN_SIM", "0.5"))
     )
 
     # --- Vector store slot ------------------------------------------------

@@ -12,6 +12,7 @@ import json
 import urllib.error
 import urllib.request
 
+from atomir._http import request_bytes
 from atomir.llm.parsing import extract_json
 from atomir.providers.llm_base import LLM
 
@@ -61,8 +62,7 @@ class GroqLLM(LLM):
             },
         )
         try:
-            with urllib.request.urlopen(req) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
+            payload = json.loads(request_bytes(req).decode("utf-8"))
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")[:300]
             raise RuntimeError(f"Groq request failed: {e.code} {e.reason} — {detail}") from e

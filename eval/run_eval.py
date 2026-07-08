@@ -1,12 +1,14 @@
 """Tiny eval harness — the daily driver.
 
 For each case: ingest its history into a FRESH user_id (and a fresh in-memory
-store for isolation), then check the resulting ACTIVE facts by substring, and
-retrieval by substring. With --answers, also generate an answer from the
-retrieved facts and grade it with the LLM `judge`. Reports accuracy AND latency
-(p50/p95 per op) so every change shows quality and milliseconds together.
+store for isolation), then grade the resulting ACTIVE facts. Grading is by
+substring where that's unambiguous, and by the LLM `judge` (`judge_active`) where
+phrasing varies — e.g. UPDATE/DELETE, where a correct memory may keep a negated
+or historical mention. Retrieval is graded by substring. With --answers, also
+compose an answer from the retrieved facts and grade it. Reports accuracy AND
+latency (p50/p95 per op).
 
-Run (real providers):  LLM_BACKEND=groq python eval/run_eval.py [--answers]
+Run:   LLM_BACKEND=groq python eval/run_eval.py [--answers] [--min-sim 0.5]
 """
 
 from __future__ import annotations
@@ -30,34 +32,22 @@ def pct(xs: list[float], p: float) -> float:
         return 0.0
     xs = sorted(xs)
     k = (len(xs) - 1) * p / 100.0
-    lo = int(k)
-    hi = min(lo + 1, len(xs) - 1)
+    lo, hi = int(k), min(int(k) + 1, len(xs) - 1)
     return xs[lo] + (xs[hi] - xs[lo]) * (k - lo)
 
 
-def fresh_service(llm, emb) -> MemoryService:
+def _fresh_service(llm, emb, min_sim: float) -> MemoryService:
     store = QdrantMemoryStore(QdrantClient(":memory:"), "eval", settings.embed_dim)
-    return MemoryService(store, llm, emb, reconcile_min_sim=settings.reconcile_min_sim)
+    return MemoryService(store, llm, emb, reconcile_min_sim=min_sim)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--answers", action="store_true", help="also generate + judge answers")
-    ap.add_argument("--set", default=os.path.join(os.path.dirname(__file__), "eval_set.json"))
-    args = ap.parse_args()
-
-    cases = json.load(open(args.set))
-    llm = LLMFactory.create(settings.llm)
-    emb = EmbedderFactory.create(settings.embedder)
-    print(f"config: llm={settings.llm_backend} embedder={settings.embed_backend} "
-          f"dim={settings.embed_dim} min_sim={settings.reconcile_min_sim}\n")
-
+def evaluate(cases, llm, emb, min_sim: float, answers: bool = False) -> dict:
+    """Run every case at a given min_sim. Returns rows + latency samples."""
     add_lat: list[float] = []
     search_lat: list[float] = []
     rows = []
-
     for case in cases:
-        svc = fresh_service(llm, emb)
+        svc = _fresh_service(llm, emb, min_sim)
         uid = "eval-" + uuid.uuid4().hex[:8]
         for msg in case.get("history", []):
             t = time.perf_counter()
@@ -73,6 +63,9 @@ def main() -> None:
             checks.append((f"absent:{sub}", sub.lower() not in active_text))
         if "expect_count" in case:
             checks.append((f"count={case['expect_count']}", len(active) == case["expect_count"]))
+        if case.get("judge_active"):
+            ok, _ = llm.judge(case["judge_active"], active_text or "(no facts)")
+            checks.append(("judge_active", ok))
 
         if case.get("query"):
             t = time.perf_counter()
@@ -83,34 +76,49 @@ def main() -> None:
                 checks.append((f"retr:{sub}", sub.lower() in retrieved))
             for sub in case.get("expect_not_retrieved", []):
                 checks.append((f"no-retr:{sub}", sub.lower() not in retrieved))
-            if args.answers and case.get("judge"):
-                ctx = "; ".join(r["text"] for r in res["results"])
-                answer = llm.chat_text(
-                    "Answer the question using ONLY the known facts. If the facts do "
-                    "not contain the answer, say you don't know.",
+            if answers and case.get("judge"):
+                ctx = "; ".join(r["text"] for r in res["results"]) or "(no relevant facts)"
+                ans = llm.chat_text(
+                    "Answer using ONLY the known facts; if they don't contain the "
+                    "answer, say you don't know.",
                     f"KNOWN FACTS: {ctx}\nQUESTION: {case['query']}",
                 )
-                ok, _ = llm.judge(case["judge"], answer)
+                ok, _ = llm.judge(case["judge"], ans)
                 checks.append(("judge", ok))
-        elif args.answers and case.get("judge"):
-            # absence/constraint cases may not have a query -> judge active facts
-            ok, _ = llm.judge(case["judge"], active_text)
-            checks.append(("judge", ok))
 
         passed = all(v for _, v in checks)
-        failed = [n for n, v in checks if not v]
-        rows.append((case["id"], case["type"], passed, failed, active_text))
+        rows.append({
+            "id": case["id"], "type": case["type"], "passed": passed,
+            "failed": [n for n, v in checks if not v],
+            "active": active_text, "n_active": len(active),
+        })
+    return {"rows": rows, "add_lat": add_lat, "search_lat": search_lat}
 
-    # ---- report ----
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--answers", action="store_true", help="also compose + judge answers")
+    ap.add_argument("--min-sim", type=float, default=settings.reconcile_min_sim)
+    ap.add_argument("--set", default=os.path.join(os.path.dirname(__file__), "eval_set.json"))
+    args = ap.parse_args()
+
+    cases = json.load(open(args.set))
+    llm = LLMFactory.create(settings.llm)
+    emb = EmbedderFactory.create(settings.embedder)
+    print(f"config: llm={settings.llm_backend} embedder={settings.embed_backend} "
+          f"dim={settings.embed_dim} min_sim={args.min_sim}\n")
+
+    out = evaluate(cases, llm, emb, args.min_sim, answers=args.answers)
+    rows, add_lat, search_lat = out["rows"], out["add_lat"], out["search_lat"]
+
     print(f"{'case':<28}{'type':<12}{'result':<8}failed checks")
     print("-" * 78)
     n_pass = 0
-    for cid, ctype, passed, failed, active in rows:
-        n_pass += passed
-        mark = "PASS" if passed else "FAIL"
-        print(f"{cid:<28}{ctype:<12}{mark:<8}{', '.join(failed)}")
-        if not passed:
-            print(f"    active facts: {active[:160]}")
+    for r in rows:
+        n_pass += r["passed"]
+        print(f"{r['id']:<28}{r['type']:<12}{'PASS' if r['passed'] else 'FAIL':<8}{', '.join(r['failed'])}")
+        if not r["passed"]:
+            print(f"    active facts: {r['active'][:160]}")
     print("-" * 78)
     print(f"accuracy: {n_pass}/{len(rows)} = {100*n_pass/len(rows):.0f}%")
     print(f"add    latency  p50={pct(add_lat,50):.0f}ms  p95={pct(add_lat,95):.0f}ms  (n={len(add_lat)})")

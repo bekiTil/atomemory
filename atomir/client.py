@@ -51,6 +51,12 @@ class MemoryClient:
             body={"user_id": user_id, "query": query, "k": k, "decompose": decompose},
         )
 
+    def answer(self, user_id: str, query: str, k: int = 6, decompose: bool = True) -> dict:
+        return self._request(
+            "POST", "/answer",
+            body={"user_id": user_id, "query": query, "k": k, "decompose": decompose},
+        )
+
     def get_all(self, user_id: str) -> list[dict]:
         return self._request("GET", "/memories", params={"user_id": user_id})
 

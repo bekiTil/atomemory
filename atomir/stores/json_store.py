@@ -8,16 +8,18 @@ linear scan over a flat list — and is expected to be swapped for Qdrant (Step 
 Every method filters by `user_id`: all tenants share one flat list, so isolation
 is the store's responsibility on every read, write, and delete.
 
-DURABILITY: this backend is NOT crash-safe — `_save` rewrites the whole file
-with no atomic replace or fsync, so a crash mid-write can corrupt or truncate it.
-Dev/test only. For durable storage use a real DB backend (e.g. Qdrant), whose
-persistence guarantees come from the database itself.
+DURABILITY: `_save` writes to a temp file, fsyncs it, and atomically `os.replace`s
+it over the target, so a crash mid-write leaves the previous good file intact
+(never a truncated/corrupt one). It is still a single-file, single-process store
+(no multi-process locking, whole-file rewrite per save) — fine for dev, small
+deployments, and tests; use a real DB backend (e.g. Qdrant) at scale.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import tempfile
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -45,8 +47,23 @@ class JsonMemoryStore(MemoryStore):
         return []
 
     def _save(self) -> None:
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(self._facts, f, ensure_ascii=False, indent=2)
+        # Atomic write: fully write + fsync a temp file in the same directory,
+        # then os.replace() it over the target (atomic on POSIX and Windows).
+        # A crash mid-write leaves the previous file intact, never a partial one.
+        directory = os.path.dirname(os.path.abspath(self.path)) or "."
+        fd, tmp = tempfile.mkstemp(dir=directory, prefix=".atomir-", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(self._facts, f, ensure_ascii=False, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, self.path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
     def _public(self, fact: dict) -> dict:
         """A copy without the raw embedding (an internal detail)."""

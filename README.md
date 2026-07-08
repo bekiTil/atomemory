@@ -82,6 +82,7 @@ curl -XPOST localhost:8000/search -H 'content-type: application/json' \
 |---|---|---|---|
 | POST | `/memories` | `{user_id, text}` | `{operations, facts}` |
 | POST | `/search` | `{user_id, query, k?, decompose?}` | `{subquestions, results}` |
+| POST | `/answer` | `{user_id, query, k?, decompose?}` | `{answer, subquestions, results}` |
 | GET | `/memories` | `?user_id=` | list of facts |
 | DELETE | `/memories/{id}` | `?user_id=` | `{deleted, id}` (404 if absent) |
 | DELETE | `/memories` | `?user_id=` | `{reset}` |
@@ -96,15 +97,31 @@ All config is read from the environment (see `.env.example`): `LLM_BACKEND`,
 `LLM_API_KEY`, `MODEL`, `EMBED_BACKEND`, `EMBED_API_KEY`, `EMBED_DIM`,
 `RECONCILE_MIN_SIM`, `STORE_BACKEND`, `COLLECTION`, `STORE_URL`, `STORE_PATH`.
 
+## Composed answers
+
+`search` returns facts (+ sub-questions); `answer` additionally composes a
+grounded final sentence from them (LLM told to use only the retrieved facts):
+
+```python
+mem.answer("user123", "who should I email about my project?")
+# -> {"answer": "...", "subquestions": [...], "results": [...]}
+```
+
+## Robustness
+
+Provider calls retry transient failures (HTTP 429 rate-limits and 5xx) with
+backoff, honoring `Retry-After`. The JSON store writes atomically (temp file →
+`fsync` → `os.replace`), so a crash mid-write can't corrupt the file.
+
 ## Known limitations
 
-- **Reconciler threshold is untuned.** `RECONCILE_MIN_SIM` defaults to `0.6`; on
-  Jina, real "same-attribute" pairs measured ~0.6, so it sits right on the edge.
-  It should be tuned per embedder with the eval harness, not trusted as-is.
-- **The JSON backend is NOT crash-safe.** It rewrites the whole file without
-  atomic replace/fsync — dev and tests only. Use Qdrant for durable storage.
-- **No transactions.** Writes are serialized per user with a simple lock
-  (Step 9); full transactional rollback is deferred (DECISION #5).
-- **Read returns facts, not a composed answer.** `search` returns the relevant
-  facts and sub-questions; turning them into a final sentence is the caller's
-  LLM's job.
+- **`RECONCILE_MIN_SIM` is embedder-dependent.** The default `0.5` is tuned for
+  Jina via `eval/tune.py` (it sits between measured unrelated ~0.45 and
+  same-attribute ~0.60 similarity). Switching embedders? Re-run `eval/tune.py`.
+- **JSON store is single-process.** Writes are now atomic (no corruption), but
+  it holds no cross-process lock and rewrites the whole file per save — great for
+  dev and small deployments; use Qdrant at scale.
+- **No multi-fact transactions.** Each write is atomic and per-user serialized
+  (Step 9), and a partial `add` is self-healing on retry (reconcile NOOPs facts
+  already stored). Full all-or-nothing rollback across an `add` is deferred
+  (DECISION #5) — open an issue if you need it.

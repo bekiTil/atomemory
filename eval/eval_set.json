@@ -17,14 +17,14 @@
     "type": "UPDATE",
     "history": ["I work at Acme Corp.", "I switched jobs — I now work at Globex, I don't work at Acme anymore."],
     "expect_facts": ["globex"],
-    "expect_absent": ["acme"]
+    "judge_active": "The active memory must show the user currently works at Globex, and must NOT assert the user CURRENTLY works at Acme. A past/negated mention (e.g. 'no longer at Acme') is acceptable."
   },
   {
     "id": "update_role",
     "type": "UPDATE",
     "history": ["I'm a junior engineer.", "I got promoted — I'm a senior engineer now, no longer junior."],
     "expect_facts": ["senior"],
-    "expect_absent": ["junior"]
+    "judge_active": "The active memory must show the user is currently a senior engineer, and must NOT assert the user is CURRENTLY a junior engineer. A past/negated mention is acceptable."
   },
   {
     "id": "multi_fact_retention",
@@ -36,7 +36,7 @@
     "id": "delete",
     "type": "DELETE",
     "history": ["I'm allergic to peanuts.", "Great news: my peanut allergy is gone, I'm no longer allergic to peanuts."],
-    "expect_absent": ["peanut"]
+    "judge_active": "The active memory must NOT assert the user is CURRENTLY allergic to peanuts. A note that the allergy is gone/past is acceptable."
   },
   {
     "id": "distractor_retrieval",

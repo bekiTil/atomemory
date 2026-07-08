@@ -16,7 +16,7 @@ from atomir.assembly import build_memory_service
 from atomir.config import settings
 
 service = build_memory_service()
-app = FastAPI(title="atomir", version="0.1.0")
+app = FastAPI(title="atomir", version="0.2.0")
 
 
 class AddBody(BaseModel):
@@ -39,6 +39,11 @@ def add_memories(body: AddBody) -> dict:
 @app.post("/search")
 def search(body: SearchBody) -> dict:
     return service.search(body.user_id, body.query, k=body.k, decompose=body.decompose)
+
+
+@app.post("/answer")
+def answer(body: SearchBody) -> dict:
+    return service.answer(body.user_id, body.query, k=body.k, decompose=body.decompose)
 
 
 @app.get("/memories")
