@@ -3,10 +3,15 @@
 Vendor-neutral engine code: depends ONLY on the injected `MemoryStore`, `LLM`,
 and `Embedder` interfaces — no provider SDK and no vendor name anywhere.
 
-Flow: embed the candidate as a QUERY -> find nearest existing facts ->
+Flow: embed the candidate as a PASSAGE -> find nearest existing facts ->
 DECISION #1a similarity gate (weak match => ADD directly, skip the LLM) ->
-otherwise let the LLM choose ADD / UPDATE / DELETE / NOOP -> apply via the store
-(ADD/UPDATE store the candidate embedded as a PASSAGE).
+otherwise let the LLM choose ADD / UPDATE / DELETE / NOOP -> apply via the store.
+
+Note: reconciliation compares a new FACT against stored FACTS — a symmetric,
+passage-to-passage comparison — so the candidate is embedded as a PASSAGE, not a
+query. (embed_query is tuned for questions; on an asymmetric embedder like Jina,
+using it here collapses same-attribute similarity to noise. The READ path uses
+embed_query, because there the input really is a question.)
 """
 
 from __future__ import annotations
@@ -53,7 +58,8 @@ def reconcile(
     if not candidate_text:
         return {"decision": "NOOP", "reason": "empty candidate", "fact": None}
 
-    neighbors = store.search(user_id, embedder.embed_query(candidate_text), k=k)
+    # Fact-to-fact comparison is symmetric -> embed the candidate as a PASSAGE.
+    neighbors = store.search(user_id, embedder.embed_passage(candidate_text), k=k)
 
     # DECISION #1a: no neighbor, or the nearest is too weak -> ADD, skip the LLM.
     if not neighbors or neighbors[0].get("score", 0.0) < min_sim:
