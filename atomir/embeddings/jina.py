@@ -18,6 +18,8 @@ import urllib.request
 from atomir.providers.embedder_base import Embedder
 
 _JINA_URL = "https://api.jina.ai/v1/embeddings"
+# A named User-Agent avoids Cloudflare's default-urllib-UA block (see groq.py).
+_USER_AGENT = "atomir/0.1"
 
 
 class JinaEmbedder(Embedder):
@@ -65,6 +67,7 @@ class JinaEmbedder(Embedder):
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}",
+                "User-Agent": _USER_AGENT,
             },
         )
         try:

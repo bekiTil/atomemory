@@ -16,6 +16,9 @@ from atomir.llm.parsing import extract_json
 from atomir.providers.llm_base import LLM
 
 _GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+# Groq sits behind Cloudflare, which blocks the default urllib User-Agent
+# (403 / "error code: 1010"). A named UA avoids that.
+_USER_AGENT = "atomir/0.1"
 
 
 class GroqLLM(LLM):
@@ -54,13 +57,15 @@ class GroqLLM(LLM):
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}",
+                "User-Agent": _USER_AGENT,
             },
         )
         try:
             with urllib.request.urlopen(req) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
-            raise RuntimeError(f"Groq request failed: {e.code} {e.reason}") from e
+            detail = e.read().decode("utf-8", "replace")[:300]
+            raise RuntimeError(f"Groq request failed: {e.code} {e.reason} — {detail}") from e
         return payload["choices"][0]["message"]["content"]
 
     def chat_text(self, system: str, user: str) -> str:
