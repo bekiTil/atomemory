@@ -21,9 +21,19 @@ similarity search. atomir does the opposite at both ends:
 
 The LLM, the embedder, and the vector store are each an **interface** chosen at
 runtime by config (`{provider, config}` blocks). The engine imports only the
-interfaces — never a provider SDK or vendor name. Swapping Groq↔OpenAI,
-Jina↔Voyage, or Qdrant↔pgvector is one config change plus one small class.
+interfaces — never a provider SDK or vendor name. Swapping providers is one
+config change; adding a new one is a single class plus a registry line.
 Defaults use `fake` backends, so everything runs with **no external keys**.
+
+| Slot | Built-in providers |
+|---|---|
+| LLM | `fake`, `groq`, `openai`, `anthropic`, `ollama` |
+| Embedder | `fake`, `jina`, `voyage`, `openai`, `ollama` |
+| Store | `json`, `qdrant` |
+
+Each provider is selected by `LLM_BACKEND` / `EMBED_BACKEND` / `STORE_BACKEND`
+with its key in `LLM_API_KEY` / `EMBED_API_KEY` (Ollama and the fakes need none).
+`LLM_BASE_URL` / `EMBED_BASE_URL` can point at self-hosted or proxy endpoints.
 
 ## Install
 

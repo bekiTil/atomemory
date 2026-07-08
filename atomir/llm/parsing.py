@@ -40,6 +40,19 @@ def _first_json_object(text: str) -> str | None:
     return None
 
 
+_JUDGE_SYSTEM = (
+    "You are a strict evaluator. Given a rubric and some content, decide if the "
+    "content satisfies the rubric. Respond ONLY with JSON: "
+    '{"pass": <true|false>, "reason": "<short explanation>"}.'
+)
+
+
+def judge_with(chat_json, rubric: str, content: str) -> tuple[bool, str]:
+    """Run a rubric judge via any LLM's `chat_json`. Shared across providers."""
+    result = chat_json(_JUDGE_SYSTEM, f"RUBRIC:\n{rubric}\n\nCONTENT:\n{content}")
+    return bool(result.get("pass")), str(result.get("reason", ""))
+
+
 def extract_json(text: str) -> dict:
     """Parse a dict out of possibly-messy model output, or raise ValueError."""
     s = text.strip()

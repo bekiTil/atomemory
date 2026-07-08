@@ -39,6 +39,8 @@ class Settings:
     llm_backend: str = field(default_factory=lambda: _env("LLM_BACKEND", "fake"))
     llm_api_key: str = field(default_factory=lambda: _env("LLM_API_KEY"))
     model: str = field(default_factory=lambda: _env("MODEL", "llama-3.3-70b-versatile"))
+    # Optional override of the LLM endpoint (self-host, proxy, local Ollama).
+    llm_base_url: str = field(default_factory=lambda: _env("LLM_BASE_URL"))
 
     # --- Embedder slot ----------------------------------------------------
     # Same neutrality: `jina` is the first example, but nothing here names it.
@@ -46,6 +48,7 @@ class Settings:
     embed_api_key: str = field(default_factory=lambda: _env("EMBED_API_KEY"))
     # Dimension travels WITH the embedder choice (Jina v3 = 1024).
     embed_dim: int = field(default_factory=lambda: int(_env("EMBED_DIM", "1024")))
+    embed_base_url: str = field(default_factory=lambda: _env("EMBED_BASE_URL"))
 
     # --- Reconciler tuning ------------------------------------------------
     # Write-side similarity gate (DECISION #1a): a candidate whose nearest
@@ -72,14 +75,22 @@ class Settings:
     def llm(self) -> dict:
         return {
             "provider": self.llm_backend,
-            "config": {"api_key": self.llm_api_key, "model": self.model},
+            "config": {
+                "api_key": self.llm_api_key,
+                "model": self.model,
+                "base_url": self.llm_base_url,
+            },
         }
 
     @property
     def embedder(self) -> dict:
         return {
             "provider": self.embed_backend,
-            "config": {"api_key": self.embed_api_key, "embed_dim": self.embed_dim},
+            "config": {
+                "api_key": self.embed_api_key,
+                "embed_dim": self.embed_dim,
+                "base_url": self.embed_base_url,
+            },
         }
 
     @property

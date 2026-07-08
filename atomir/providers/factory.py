@@ -23,8 +23,17 @@ class LLMFactory:
     @staticmethod
     def _registry() -> dict[str, type[LLM]]:
         from atomir.llm import FakeLLM, GroqLLM  # Groq is the FIRST impl, not the only one
+        from atomir.llm.anthropic import AnthropicLLM
+        from atomir.llm.ollama import OllamaLLM
+        from atomir.llm.openai import OpenAILLM
 
-        return {"fake": FakeLLM, "groq": GroqLLM}
+        return {
+            "fake": FakeLLM,
+            "groq": GroqLLM,
+            "openai": OpenAILLM,
+            "anthropic": AnthropicLLM,
+            "ollama": OllamaLLM,
+        }
 
     @classmethod
     def create(cls, cfg: dict) -> LLM:
@@ -42,8 +51,17 @@ class EmbedderFactory:
     @staticmethod
     def _registry() -> dict[str, type[Embedder]]:
         from atomir.embeddings import FakeEmbedder, JinaEmbedder
+        from atomir.embeddings.ollama import OllamaEmbedder
+        from atomir.embeddings.openai import OpenAIEmbedder
+        from atomir.embeddings.voyage import VoyageEmbedder
 
-        return {"fake": FakeEmbedder, "jina": JinaEmbedder}
+        return {
+            "fake": FakeEmbedder,
+            "jina": JinaEmbedder,
+            "voyage": VoyageEmbedder,
+            "openai": OpenAIEmbedder,
+            "ollama": OllamaEmbedder,
+        }
 
     @classmethod
     def create(cls, cfg: dict) -> Embedder:
