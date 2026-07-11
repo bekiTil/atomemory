@@ -16,7 +16,7 @@ from atomir.assembly import build_memory_service
 from atomir.config import settings
 
 service = build_memory_service()
-app = FastAPI(title="atomir", version="0.4.0")
+app = FastAPI(title="atomir", version="0.4.1")
 
 
 class AddBody(BaseModel):
