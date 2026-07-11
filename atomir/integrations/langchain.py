@@ -28,12 +28,9 @@ from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
+from atomir.integrations import format_memories
 
-def format_memories(results: list[dict]) -> str:
-    """Render atomir search results into a bullet list for a prompt."""
-    if not results:
-        return "(no relevant memories)"
-    return "\n".join(f"- {r['text']}" for r in results)
+__all__ = ["AtomirRetriever", "AtomirMemory", "format_memories"]
 
 
 class AtomirRetriever(BaseRetriever):

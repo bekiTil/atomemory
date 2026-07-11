@@ -29,7 +29,8 @@ ollama = []
 qdrant = ["qdrant-client>=1.7"]
 api = ["fastapi>=0.100", "uvicorn[standard]>=0.23"]
 langchain = ["langchain-core>=0.3"]
-all = ["qdrant-client>=1.7", "fastapi>=0.100", "uvicorn[standard]>=0.23", "langchain-core>=0.3"]
+langgraph = ["langgraph>=0.2"]
+all = ["qdrant-client>=1.7", "fastapi>=0.100", "uvicorn[standard]>=0.23", "langchain-core>=0.3", "langgraph>=0.2"]
 
 # Discover atomir and ALL its subpackages (stores, llm, embeddings, providers).
 [tool.setuptools.packages.find]

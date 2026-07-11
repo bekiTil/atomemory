@@ -118,8 +118,31 @@ retriever = mem.as_retriever()                 # a real LangChain BaseRetriever
 docs      = retriever.invoke("who is my manager?")
 ```
 
-`AtomirRetriever` slots into any LangChain chain / LangGraph node; scope memory
-per user, per agent, or per tenant by choosing the `user_id`.
+## LangGraph integration
+
+`pip install "atomir[langgraph]"` — ready-made `recall`/`remember` nodes (plain
+`state → state` callables, so the integration itself needs no framework) plus a
+`scope()` helper for multi-agent / multi-tenant memory namespaces:
+
+```python
+from langgraph.graph import StateGraph, START, END
+from atomir.assembly import build_memory_service
+from atomir.integrations.langgraph import recall_node, remember_node, scope
+
+mem = build_memory_service()
+g = StateGraph(dict)
+g.add_node("recall", recall_node(mem))       # -> state["memories"]
+g.add_node("agent", my_agent)                # reads state["memories"]
+g.add_node("remember", remember_node(mem))   # stores state["input"]
+g.add_edge(START, "recall"); g.add_edge("recall", "agent")
+g.add_edge("agent", "remember"); g.add_edge("remember", END)
+app = g.compile()
+```
+
+For multi-agent teams, choose the namespace: `scope("u1")` (shared across the
+crew), `scope("u1", agent="researcher")` (agent-private), `scope("u1",
+tenant="acme")` (multi-tenant). Concurrent writes to the same namespace are
+serialized by atomir's per-user lock.
 
 ## Configuration
 
