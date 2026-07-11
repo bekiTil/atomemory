@@ -1,5 +1,9 @@
 # atomir
 
+[![PyPI](https://img.shields.io/pypi/v/atomir)](https://pypi.org/project/atomir/)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/atomir?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/atomir)
+[![Python](https://img.shields.io/pypi/pyversions/atomir)](https://pypi.org/project/atomir/)
+
 Atomic memory infrastructure for agents. **Memory is atomic on both ends:**
 atomic facts on write (extract → reconcile), atomic sub-question decomposition on
 read (decompose → retrieve per sub-question → union).
