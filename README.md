@@ -101,6 +101,26 @@ curl -XPOST localhost:8000/search -H 'content-type: application/json' \
 `MemoryClient(base_url)` (in `atomir.client`) wraps these with the same method
 names and return shapes.
 
+## LangChain integration
+
+`pip install "atomir[langchain]"` — then use atomir as a drop-in retriever or a
+recall/remember helper (works with an in-process `MemoryService` or a remote
+`MemoryClient`):
+
+```python
+from atomir.assembly import build_memory_service
+from atomir.integrations.langchain import AtomirMemory
+
+mem = AtomirMemory(build_memory_service(), user_id="user:123")
+mem.remember("I'm vegetarian and my manager is Dana.")
+context   = mem.recall("who is my manager?")   # formatted string for a prompt
+retriever = mem.as_retriever()                 # a real LangChain BaseRetriever
+docs      = retriever.invoke("who is my manager?")
+```
+
+`AtomirRetriever` slots into any LangChain chain / LangGraph node; scope memory
+per user, per agent, or per tenant by choosing the `user_id`.
+
 ## Configuration
 
 All config is read from the environment (see `.env.example`): `LLM_BACKEND`,
