@@ -12,3 +12,6 @@ venv/
 # Secrets & local data
 .env
 qdrant_data/
+
+**build_spec.md
+**prompts.md
