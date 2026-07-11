@@ -134,15 +134,21 @@ def grade_case(case, memory, judge, answers):
 
 
 def run(name, cases, memory, judge, answers):
-    passed, add_lat, search_lat = 0, [], []
+    passed, done, errors, add_lat, search_lat = 0, 0, 0, [], []
     for case in cases:
-        ok, a, s = grade_case(case, memory, judge, answers)
+        try:
+            ok, a, s = grade_case(case, memory, judge, answers)
+        except Exception as e:  # e.g. rate limit — record and keep going
+            errors += 1
+            print(f"  [{name}] {case['id']:<26} ERROR: {str(e)[:70]}")
+            continue
+        done += 1
         passed += ok
         add_lat += a
         search_lat += s
         print(f"  [{name}] {case['id']:<26} {'PASS' if ok else 'FAIL'}")
-    return {"name": name, "passed": passed, "total": len(cases),
-            "add": add_lat, "search": search_lat}
+    return {"name": name, "passed": passed, "done": done, "errors": errors,
+            "total": len(cases), "add": add_lat, "search": search_lat}
 
 
 def main():
@@ -166,16 +172,22 @@ def main():
     print("== atomir ==")
     r_atomir = run("atomir", cases, make_atomir(judge, emb), judge, args.answers)
     print("\n== mem0 ==")
-    r_mem0 = run("mem0", cases, Mem0Memory(), judge, args.answers)
+    try:
+        r_mem0 = run("mem0", cases, Mem0Memory(), judge, args.answers)
+    except Exception as e:
+        print("mem0 setup failed:", str(e)[:120])
+        r_mem0 = {"name": "mem0", "passed": 0, "done": 0, "errors": len(cases),
+                  "total": len(cases), "add": [], "search": []}
 
-    print("\n" + "=" * 60)
-    print(f"{'system':<10}{'accuracy':<14}{'add p50/p95':<18}search p50/p95")
-    print("-" * 60)
+    print("\n" + "=" * 66)
+    print(f"{'system':<10}{'accuracy (of completed)':<26}{'add p50/p95':<18}search p50/p95")
+    print("-" * 66)
     for r in (r_atomir, r_mem0):
-        acc = f"{r['passed']}/{r['total']} ({100*r['passed']//r['total']}%)"
+        d = r["done"] or 1
+        acc = f"{r['passed']}/{r['done']} ({100*r['passed']//d}%)  +{r['errors']} err"
         add = f"{pct(r['add'],50):.0f}/{pct(r['add'],95):.0f}ms"
         srch = f"{pct(r['search'],50):.0f}/{pct(r['search'],95):.0f}ms"
-        print(f"{r['name']:<10}{acc:<14}{add:<18}{srch}")
+        print(f"{r['name']:<10}{acc:<26}{add:<18}{srch}")
 
 
 if __name__ == "__main__":
