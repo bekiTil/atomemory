@@ -13,5 +13,5 @@ venv/
 .env
 qdrant_data/
 
-**build_spec.md
-**prompts.md
+*build_spec.md
+*prompts.md
