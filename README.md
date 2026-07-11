@@ -101,11 +101,40 @@ curl -XPOST localhost:8000/search -H 'content-type: application/json' \
 `MemoryClient(base_url)` (in `atomir.client`) wraps these with the same method
 names and return shapes.
 
-## LangChain integration
+## Using atomir with agents & frameworks
 
-`pip install "atomir[langchain]"` — then use atomir as a drop-in retriever or a
-recall/remember helper (works with an in-process `MemoryService` or a remote
-`MemoryClient`):
+atomir is the *memory*, not the model. Your app (or agent) does the reasoning;
+atomir supplies the relevant facts. The universal pattern is **recall before,
+remember after**:
+
+1. **Recall** relevant facts for the incoming message → inject into the prompt.
+2. Your LLM/agent produces the answer.
+3. **Remember** the turn → atomir extracts atomic facts and reconciles them.
+
+Runnable examples live in [`examples/`](examples/).
+
+### Memory topology — choose the `user_id`
+
+`user_id` is an opaque namespace, so *how you pick it* defines your memory
+topology (use `scope()` from the LangGraph helper to build these consistently):
+
+| Namespace | Meaning |
+|---|---|
+| `"user:123"` | **Shared** — the whole agent crew sees one memory of the user (default) |
+| `"user:123#agent:researcher"` | **Agent-private** — an agent's own scratchpad |
+| `"acme|user:123"` | **Multi-tenant** — tenant + user hierarchy |
+
+### In-process vs. as a service
+
+- **In-process:** `build_memory_service()` — direct calls, fastest.
+- **As a service:** run `uvicorn atomir.api:app`, then give every agent a
+  `MemoryClient(url)`. Best for distributed multi-agent systems — all agents
+  share one memory; the per-user lock keeps concurrent writes safe.
+
+### LangChain — `pip install "atomir[langchain]"`
+
+`AtomirRetriever` is a real `BaseRetriever` (drops into any chain); `AtomirMemory`
+is a recall/remember helper. Both accept a `MemoryService` or a `MemoryClient`.
 
 ```python
 from atomir.assembly import build_memory_service
@@ -115,14 +144,12 @@ mem = AtomirMemory(build_memory_service(), user_id="user:123")
 mem.remember("I'm vegetarian and my manager is Dana.")
 context   = mem.recall("who is my manager?")   # formatted string for a prompt
 retriever = mem.as_retriever()                 # a real LangChain BaseRetriever
-docs      = retriever.invoke("who is my manager?")
 ```
 
-## LangGraph integration
+### LangGraph & multi-agent — `pip install "atomir[langgraph]"`
 
-`pip install "atomir[langgraph]"` — ready-made `recall`/`remember` nodes (plain
-`state → state` callables, so the integration itself needs no framework) plus a
-`scope()` helper for multi-agent / multi-tenant memory namespaces:
+Ready-made `recall`/`remember` nodes (plain `state → state` callables — the
+integration itself needs no framework) plus `scope()` for namespacing:
 
 ```python
 from langgraph.graph import StateGraph, START, END
@@ -139,10 +166,14 @@ g.add_edge("agent", "remember"); g.add_edge("remember", END)
 app = g.compile()
 ```
 
-For multi-agent teams, choose the namespace: `scope("u1")` (shared across the
-crew), `scope("u1", agent="researcher")` (agent-private), `scope("u1",
-tenant="acme")` (multi-tenant). Concurrent writes to the same namespace are
-serialized by atomir's per-user lock.
+In a multi-agent graph, agents **coordinate through shared memory**: the
+researcher writes findings, the writer reads them — persisting across runs, not
+just within the graph's state.
+
+**Write policy:** don't let every agent `remember()` every message — memory fills
+with noise. Store confirmed/durable findings only, often from a single
+consolidation node. Concurrent writes to one namespace are serialized by the
+per-user lock, so they're safe.
 
 ## Configuration
 
