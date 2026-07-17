@@ -70,11 +70,8 @@ def atomic_search(
     exposed deliberately (the differentiator, and a debugging aid). With hybrid,
     `score` is the fused RRF score (rank-based), not a cosine.
     """
-    # Embed the raw query CONCURRENTLY with the planner call — they don't depend
-    # on each other, and both are blocking network round-trips, so overlapping
-    # them hides one behind the other. If the planner declines to decompose
-    # (subquestions == [query]), its embedding is already in hand and we skip a
-    # whole round-trip; if it decomposes, we simply drop the prefetched vector.
+    # Overlap the raw-query embed with the planner call (independent); reuse it
+    # when the query isn't decomposed.
     prefetched: dict[str, list[float]] = {}
     if decompose:
         with ThreadPoolExecutor(max_workers=2) as ex:
@@ -83,7 +80,7 @@ def atomic_search(
             subquestions = fut_plan.result()["subquestions"]
             try:
                 prefetched[query] = fut_emb.result()
-            except Exception:  # speculative work must never fail the search
+            except Exception:  # prefetch is speculative; never fail the search on it
                 pass
     else:
         subquestions = [query]
@@ -92,7 +89,7 @@ def atomic_search(
     pool = max(k * 5, 50)
     by_id: dict[str, dict] = {}
 
-    # Lexical index over the user's facts — built ONCE, scored per sub-question.
+    # Lexical index over the user's facts, built once and scored per sub-question.
     bm25 = None
     corpus_ids: list[str] = []
     if hybrid:
@@ -102,8 +99,7 @@ def atomic_search(
             bm25 = BM25([f["text"] for f in corpus])
             by_id.update({f["id"]: f for f in corpus})
 
-    # Sub-question retrievals are independent blocking network calls -> run them
-    # concurrently. Output stays deterministic (fusion is order-independent).
+    # Independent per sub-question -> retrieve concurrently; fusion is order-free.
     def _dense(sq: str) -> list[dict]:
         vec = prefetched.get(sq) or embedder.embed_query(sq)
         return store.search(user_id, vec, k=pool)

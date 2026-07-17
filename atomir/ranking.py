@@ -1,11 +1,7 @@
-"""Lexical (BM25) scoring + Reciprocal Rank Fusion.
+"""Lexical (BM25) scoring + Reciprocal Rank Fusion. Stdlib only.
 
-Pure functions over text — no provider, no store, no dependency beyond stdlib.
-
-Why: semantic similarity alone buries facts that match a query's rare terms
-(names, project titles, numbers). BM25 catches those; RRF fuses the two rankings
-without needing their scores to be on a comparable scale — it only uses RANK,
-which is exactly what makes it robust across mismatched scorers.
+RRF fuses rankings by RANK, not score, so dense (cosine) and lexical (BM25)
+signals combine without needing a comparable scale.
 """
 
 from __future__ import annotations
