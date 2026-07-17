@@ -58,6 +58,7 @@ def atomic_search(
     decompose: bool = True,
     hybrid: bool = True,
     corpus_limit: int = 5000,
+    planner_llm: LLM | None = None,
 ) -> dict:
     """Retrieve facts for `query`, decomposing into sub-questions when useful.
 
@@ -70,7 +71,26 @@ def atomic_search(
     exposed deliberately (the differentiator, and a debugging aid). With hybrid,
     `score` is the fused RRF score (rank-based), not a cosine.
     """
-    subquestions = plan(llm, query)["subquestions"] if decompose else [query]
+    # The planner is a small structured task and can run on a faster model than
+    # the main LLM (see `planner_llm`); it dominates read latency otherwise.
+    planner = planner_llm or llm
+
+    # Embed the raw query CONCURRENTLY with the planner call — they don't depend
+    # on each other. If the planner declines to decompose (subquestions == [query]),
+    # its embedding is already in hand and we skip a whole round-trip. If it does
+    # decompose, we simply drop it (one cheap embed call, no added latency).
+    prefetched: dict[str, list[float]] = {}
+    if decompose:
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            fut_plan = ex.submit(plan, planner, query)
+            fut_emb = ex.submit(embedder.embed_query, query)
+            subquestions = fut_plan.result()["subquestions"]
+            try:
+                prefetched[query] = fut_emb.result()
+            except Exception:  # speculative work must never fail the search
+                pass
+    else:
+        subquestions = [query]
 
     # Pool per ranking: wider than k so fusion has candidates to promote.
     pool = max(k * 5, 50)
@@ -89,7 +109,8 @@ def atomic_search(
     # Sub-question retrievals are independent blocking network calls -> run them
     # concurrently. Output stays deterministic (fusion is order-independent).
     def _dense(sq: str) -> list[dict]:
-        return store.search(user_id, embedder.embed_query(sq), k=pool)
+        vec = prefetched.get(sq) or embedder.embed_query(sq)
+        return store.search(user_id, vec, k=pool)
 
     if len(subquestions) == 1:
         dense_hits = [_dense(subquestions[0])]
