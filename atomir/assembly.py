@@ -38,4 +38,5 @@ def build_memory_service(s: Settings = default_settings) -> MemoryService:
     llm = LLMFactory.create(s.llm)
     embedder = EmbedderFactory.create(s.embedder)
     store = _build_store(s)
-    return MemoryService(store, llm, embedder, reconcile_min_sim=s.reconcile_min_sim)
+    return MemoryService(store, llm, embedder, reconcile_min_sim=s.reconcile_min_sim,
+                         hybrid_search=s.hybrid_search)

@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from atomir.providers.embedder_base import Embedder
 from atomir.providers.llm_base import LLM
+from atomir.ranking import BM25, rrf
 from atomir.store_base import MemoryStore
 
 _PLAN_SYSTEM = (
@@ -55,34 +56,67 @@ def atomic_search(
     query: str,
     k: int = 6,
     decompose: bool = True,
+    hybrid: bool = True,
+    corpus_limit: int = 5000,
 ) -> dict:
     """Retrieve facts for `query`, decomposing into sub-questions when useful.
 
+    With `hybrid` (default), each sub-question contributes TWO rankings — dense
+    (embedding similarity) and lexical (BM25 over the user's facts) — and all of
+    them are fused with Reciprocal Rank Fusion. Semantic search alone buries
+    facts that hinge on rare terms (names, project titles); BM25 recovers them.
+
     Returns {"subquestions": [...], "results": [...]} — sub-questions are
-    exposed deliberately (the differentiator, and a debugging aid).
+    exposed deliberately (the differentiator, and a debugging aid). With hybrid,
+    `score` is the fused RRF score (rank-based), not a cosine.
     """
     subquestions = plan(llm, query)["subquestions"] if decompose else [query]
 
-    # Each sub-question is embedded as a QUERY (here the input really is a
-    # question) and retrieved independently. The retrievals are mutually
-    # independent, so they run CONCURRENTLY — each is a blocking network call to
-    # the embedder, and waiting on them in series is pure added latency. Output
-    # stays deterministic: hits are deduped by id (best score wins) and sorted.
-    def _retrieve(sq: str) -> list[dict]:
-        return store.search(user_id, embedder.embed_query(sq), k=k)
+    # Pool per ranking: wider than k so fusion has candidates to promote.
+    pool = max(k * 5, 50)
+    by_id: dict[str, dict] = {}
+
+    # Lexical index over the user's facts — built ONCE, scored per sub-question.
+    bm25 = None
+    corpus_ids: list[str] = []
+    if hybrid:
+        corpus = store.all(user_id, limit=corpus_limit)
+        if corpus:
+            corpus_ids = [f["id"] for f in corpus]
+            bm25 = BM25([f["text"] for f in corpus])
+            by_id.update({f["id"]: f for f in corpus})
+
+    # Sub-question retrievals are independent blocking network calls -> run them
+    # concurrently. Output stays deterministic (fusion is order-independent).
+    def _dense(sq: str) -> list[dict]:
+        return store.search(user_id, embedder.embed_query(sq), k=pool)
 
     if len(subquestions) == 1:
-        hit_lists = [_retrieve(subquestions[0])]
+        dense_hits = [_dense(subquestions[0])]
     else:
-        with ThreadPoolExecutor(max_workers=min(len(subquestions), 8)) as pool:
-            hit_lists = list(pool.map(_retrieve, subquestions))
+        with ThreadPoolExecutor(max_workers=min(len(subquestions), 8)) as ex:
+            dense_hits = list(ex.map(_dense, subquestions))
 
-    best_by_id: dict[str, dict] = {}
-    for hits in hit_lists:
-        for hit in hits:
-            hid = hit["id"]
-            if hid not in best_by_id or hit["score"] > best_by_id[hid]["score"]:
-                best_by_id[hid] = hit
+    rankings: list[list[str]] = []
+    for sq, hits in zip(subquestions, dense_hits):
+        for h in hits:
+            by_id.setdefault(h["id"], h)
+        rankings.append([h["id"] for h in hits])  # dense ranking
+        if bm25 is not None:
+            scored = [(i, s) for i, s in enumerate(bm25.scores(sq)) if s > 0]
+            scored.sort(key=lambda t: t[1], reverse=True)
+            rankings.append([corpus_ids[i] for i, _ in scored[:pool]])  # lexical
 
-    results = sorted(best_by_id.values(), key=lambda h: h["score"], reverse=True)[:k]
+    if not hybrid:  # dense-only: rank by raw similarity, as before
+        best: dict[str, dict] = {}
+        for hits in dense_hits:
+            for h in hits:
+                if h["id"] not in best or h["score"] > best[h["id"]]["score"]:
+                    best[h["id"]] = h
+        results = sorted(best.values(), key=lambda h: h["score"], reverse=True)[:k]
+        return {"subquestions": subquestions, "results": results}
+
+    fused = rrf(rankings)
+    top = sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:k]
+    results = [{**by_id[fid], "score": score} for fid, score in top if fid in by_id]
     return {"subquestions": subquestions, "results": results}

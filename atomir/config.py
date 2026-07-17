@@ -50,6 +50,13 @@ class Settings:
     embed_dim: int = field(default_factory=lambda: int(_env("EMBED_DIM", "1024")))
     embed_base_url: str = field(default_factory=lambda: _env("EMBED_BASE_URL"))
 
+    # --- Retrieval tuning -------------------------------------------------
+    # Hybrid read: fuse dense (embedding) + lexical (BM25) rankings with RRF.
+    # Semantic-only search buries facts that hinge on rare terms (names, titles).
+    hybrid_search: bool = field(
+        default_factory=lambda: _env("HYBRID_SEARCH", "true").lower() != "false"
+    )
+
     # --- Reconciler tuning ------------------------------------------------
     # Write-side similarity gate (DECISION #1a): a candidate whose nearest
     # existing fact scores below this is ADDed directly, without asking the LLM.
