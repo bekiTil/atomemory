@@ -55,6 +55,10 @@ Real providers: copy `.env.example` → `.env`, then set backends + keys.
 Adding a provider is one class + one registry line. `LLM_BASE_URL` /
 `EMBED_BASE_URL` target self-hosted or proxy endpoints.
 
+**Retrieval**: reads fuse dense (embedding) + lexical (BM25) rankings via RRF and
+run sub-question retrievals concurrently; set `HYBRID_SEARCH=false` for dense-only.
+Provider calls retry transient failures (rate limits, connection resets).
+
 ## Agent frameworks
 
 atomir is the memory, not the model: **recall before, remember after**. Scope
