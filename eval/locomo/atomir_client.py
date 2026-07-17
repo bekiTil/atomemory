@@ -23,6 +23,7 @@ score lower — report per-category so this is visible.
 from __future__ import annotations
 
 import asyncio
+import sys
 from typing import Any
 
 from qdrant_client import QdrantClient
@@ -97,7 +98,11 @@ class Mem0Client:
 
     async def add(self, messages: Any, user_id: str, timestamp: Any = None, **_: Any):
         text = _messages_to_text(messages)
-        return await asyncio.to_thread(self._svc(user_id).add, user_id, text)
+        try:
+            return await asyncio.to_thread(self._svc(user_id).add, user_id, text)
+        except Exception as e:  # benchmark resilience: skip one chunk, keep the run
+            sys.stderr.write(f"[atomir_client] add skipped ({type(e).__name__}): {str(e)[:80]}\n")
+            return {"results": []}
 
     async def search(self, query: str, user_id: str, top_k: int = 10,
                      rerank: bool = False, score_debug: bool = False, **_: Any) -> list[dict]:
