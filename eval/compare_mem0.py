@@ -29,11 +29,27 @@ import tempfile
 import time
 import uuid
 
-GROQ_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("GROQ_API_KEY", "")
-LLM_MODEL = os.environ.get("MODEL", "llama-3.3-70b-versatile")
-EMB_MODEL = os.environ.get("COMPARE_EMBED_MODEL", "nomic-embed-text")
-EMB_DIM = int(os.environ.get("EMBED_DIM", "768"))
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
+# COMPARE_PROVIDER=openai uses gpt-4o-mini + text-embedding-3-small for BOTH
+# engines (paid, no free-tier caps). Default 'groq' uses Groq LLM + Ollama embed.
+PROVIDER = os.environ.get("COMPARE_PROVIDER", "groq")
 OLLAMA = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+
+if PROVIDER == "openai":
+    LLM_KEY = os.environ.get("OPENAI_API_KEY", "")
+    LLM_MODEL = os.environ.get("MODEL", "gpt-4o-mini")
+    EMB_MODEL = os.environ.get("COMPARE_EMBED_MODEL", "text-embedding-3-small")
+    EMB_DIM = int(os.environ.get("EMBED_DIM", "1536"))
+else:
+    LLM_KEY = os.environ.get("LLM_API_KEY") or os.environ.get("GROQ_API_KEY", "")
+    LLM_MODEL = os.environ.get("MODEL", "llama-3.3-70b-versatile")
+    EMB_MODEL = os.environ.get("COMPARE_EMBED_MODEL", "nomic-embed-text")
+    EMB_DIM = int(os.environ.get("EMBED_DIM", "768"))
 
 
 def pct(xs, p):
@@ -45,12 +61,18 @@ def pct(xs, p):
     return xs[lo] + (xs[hi] - xs[lo]) * (k - lo)
 
 
-def build_groq():
+def build_llm():
+    if PROVIDER == "openai":
+        from atomir.llm.openai import OpenAILLM
+        return OpenAILLM(api_key=LLM_KEY, model=LLM_MODEL)
     from atomir.llm.groq import GroqLLM
-    return GroqLLM(api_key=GROQ_KEY, model=LLM_MODEL)
+    return GroqLLM(api_key=LLM_KEY, model=LLM_MODEL)
 
 
 def build_embedder():
+    if PROVIDER == "openai":
+        from atomir.embeddings.openai import OpenAIEmbedder
+        return OpenAIEmbedder(api_key=LLM_KEY, embed_dim=EMB_DIM, model=EMB_MODEL)
     from atomir.embeddings.ollama import OllamaEmbedder
     return OllamaEmbedder(embed_dim=EMB_DIM, model=EMB_MODEL, base_url=OLLAMA)
 
@@ -69,10 +91,17 @@ class Mem0Memory:
 
     def __init__(self) -> None:
         from mem0 import Memory
+        if PROVIDER == "openai":
+            os.environ.setdefault("OPENAI_API_KEY", LLM_KEY)
+            llm_cfg = {"provider": "openai", "config": {"model": LLM_MODEL, "api_key": LLM_KEY}}
+            emb_cfg = {"provider": "openai", "config": {"model": EMB_MODEL, "api_key": LLM_KEY}}
+        else:
+            llm_cfg = {"provider": "groq", "config": {"model": LLM_MODEL, "api_key": LLM_KEY}}
+            emb_cfg = {"provider": "ollama", "config": {
+                "model": EMB_MODEL, "ollama_base_url": OLLAMA, "embedding_dims": EMB_DIM}}
         config = {
-            "llm": {"provider": "groq", "config": {"model": LLM_MODEL, "api_key": GROQ_KEY}},
-            "embedder": {"provider": "ollama", "config": {
-                "model": EMB_MODEL, "ollama_base_url": OLLAMA, "embedding_dims": EMB_DIM}},
+            "llm": llm_cfg,
+            "embedder": emb_cfg,
             "vector_store": {"provider": "qdrant", "config": {
                 "collection_name": "mem0_cmp", "path": tempfile.mkdtemp(),
                 "embedding_model_dims": EMB_DIM, "on_disk": False}},
@@ -165,9 +194,9 @@ def main():
     if args.limit:
         cases = cases[: args.limit]
 
-    judge = build_groq()
+    judge = build_llm()
     emb = build_embedder()
-    print(f"shared config: llm=groq/{LLM_MODEL}  embedder=ollama/{EMB_MODEL}({EMB_DIM})\n")
+    print(f"shared config [{PROVIDER}]: llm={LLM_MODEL}  embedder={EMB_MODEL}({EMB_DIM})\n")
 
     print("== atomir ==")
     r_atomir = run("atomir", cases, make_atomir(judge, emb), judge, args.answers)

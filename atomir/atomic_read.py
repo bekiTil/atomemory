@@ -8,6 +8,8 @@ score kept). Vendor-neutral: imports ONLY the injected interfaces.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 from atomir.providers.embedder_base import Embedder
 from atomir.providers.llm_base import LLM
 from atomir.store_base import MemoryStore
@@ -62,12 +64,22 @@ def atomic_search(
     subquestions = plan(llm, query)["subquestions"] if decompose else [query]
 
     # Each sub-question is embedded as a QUERY (here the input really is a
-    # question) and retrieved independently. These retrievals are mutually
-    # independent -> safe to run concurrently (deferred to Step 9); sequential
-    # here for determinism.
+    # question) and retrieved independently. The retrievals are mutually
+    # independent, so they run CONCURRENTLY — each is a blocking network call to
+    # the embedder, and waiting on them in series is pure added latency. Output
+    # stays deterministic: hits are deduped by id (best score wins) and sorted.
+    def _retrieve(sq: str) -> list[dict]:
+        return store.search(user_id, embedder.embed_query(sq), k=k)
+
+    if len(subquestions) == 1:
+        hit_lists = [_retrieve(subquestions[0])]
+    else:
+        with ThreadPoolExecutor(max_workers=min(len(subquestions), 8)) as pool:
+            hit_lists = list(pool.map(_retrieve, subquestions))
+
     best_by_id: dict[str, dict] = {}
-    for sq in subquestions:
-        for hit in store.search(user_id, embedder.embed_query(sq), k=k):
+    for hits in hit_lists:
+        for hit in hits:
             hid = hit["id"]
             if hid not in best_by_id or hit["score"] > best_by_id[hid]["score"]:
                 best_by_id[hid] = hit
