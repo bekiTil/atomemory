@@ -38,8 +38,5 @@ def build_memory_service(s: Settings = default_settings) -> MemoryService:
     llm = LLMFactory.create(s.llm)
     embedder = EmbedderFactory.create(s.embedder)
     store = _build_store(s)
-    # Build a separate planner LLM only if the user configured one (PLANNER_*);
-    # otherwise the main LLM plans (planner_llm stays None) — no extra client.
-    planner_llm = LLMFactory.create(s.planner) if s.planner_backend else None
     return MemoryService(store, llm, embedder, reconcile_min_sim=s.reconcile_min_sim,
-                         hybrid_search=s.hybrid_search, planner_llm=planner_llm)
+                         hybrid_search=s.hybrid_search)

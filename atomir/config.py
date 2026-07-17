@@ -42,16 +42,6 @@ class Settings:
     # Optional override of the LLM endpoint (self-host, proxy, local Ollama).
     llm_base_url: str = field(default_factory=lambda: _env("LLM_BASE_URL"))
 
-    # --- Planner slot (optional) ------------------------------------------
-    # The read-path planner only classifies a query and emits a few sub-questions
-    # — a small structured task that can run on a much faster/cheaper model than
-    # the main LLM (it is ~82% of search latency). Any provider works; leave
-    # PLANNER_BACKEND empty to reuse the main LLM slot unchanged.
-    planner_backend: str = field(default_factory=lambda: _env("PLANNER_BACKEND"))
-    planner_api_key: str = field(default_factory=lambda: _env("PLANNER_API_KEY"))
-    planner_model: str = field(default_factory=lambda: _env("PLANNER_MODEL"))
-    planner_base_url: str = field(default_factory=lambda: _env("PLANNER_BASE_URL"))
-
     # --- Embedder slot ----------------------------------------------------
     # Same neutrality: `jina` is the first example, but nothing here names it.
     embed_backend: str = field(default_factory=lambda: _env("EMBED_BACKEND", "fake"))
@@ -96,21 +86,6 @@ class Settings:
                 "api_key": self.llm_api_key,
                 "model": self.model,
                 "base_url": self.llm_base_url,
-            },
-        }
-
-    @property
-    def planner(self) -> dict:
-        """Planner LLM block. Falls back to the main `llm` slot when unset, so
-        the planner is opt-in: pick any provider/model you like for it."""
-        if not self.planner_backend:
-            return self.llm
-        return {
-            "provider": self.planner_backend,
-            "config": {
-                "api_key": self.planner_api_key or self.llm_api_key,
-                "model": self.planner_model or self.model,
-                "base_url": self.planner_base_url or self.llm_base_url,
             },
         }
 

@@ -58,7 +58,6 @@ def atomic_search(
     decompose: bool = True,
     hybrid: bool = True,
     corpus_limit: int = 5000,
-    planner_llm: LLM | None = None,
 ) -> dict:
     """Retrieve facts for `query`, decomposing into sub-questions when useful.
 
@@ -71,18 +70,15 @@ def atomic_search(
     exposed deliberately (the differentiator, and a debugging aid). With hybrid,
     `score` is the fused RRF score (rank-based), not a cosine.
     """
-    # The planner is a small structured task and can run on a faster model than
-    # the main LLM (see `planner_llm`); it dominates read latency otherwise.
-    planner = planner_llm or llm
-
     # Embed the raw query CONCURRENTLY with the planner call — they don't depend
-    # on each other. If the planner declines to decompose (subquestions == [query]),
-    # its embedding is already in hand and we skip a whole round-trip. If it does
-    # decompose, we simply drop it (one cheap embed call, no added latency).
+    # on each other, and both are blocking network round-trips, so overlapping
+    # them hides one behind the other. If the planner declines to decompose
+    # (subquestions == [query]), its embedding is already in hand and we skip a
+    # whole round-trip; if it decomposes, we simply drop the prefetched vector.
     prefetched: dict[str, list[float]] = {}
     if decompose:
         with ThreadPoolExecutor(max_workers=2) as ex:
-            fut_plan = ex.submit(plan, planner, query)
+            fut_plan = ex.submit(plan, llm, query)
             fut_emb = ex.submit(embedder.embed_query, query)
             subquestions = fut_plan.result()["subquestions"]
             try:
