@@ -12,11 +12,12 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
+from atomir import __version__ as atomir_version
 from atomir.assembly import build_memory_service
 from atomir.config import settings
 
 service = build_memory_service()
-app = FastAPI(title="atomir", version="0.5.1")
+app = FastAPI(title="atomir", version=atomir_version)
 
 
 class AddBody(BaseModel):

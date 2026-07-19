@@ -6,4 +6,9 @@ multi-tenancy → API → packaging) and is vendor-neutral: the LLM, embedder, a
 vector store are each an interface chosen at runtime by config.
 """
 
-__version__ = "0.0.0"
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+try:  # single source of truth is pyproject.toml, so this can't go stale
+    __version__ = _pkg_version("atomir")
+except PackageNotFoundError:  # running from a source checkout, not installed
+    __version__ = "0.0.0+source"

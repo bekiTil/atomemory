@@ -9,7 +9,7 @@ otherwise let the LLM choose ADD / UPDATE / DELETE / NOOP -> apply via the store
 
 Note: reconciliation compares a new FACT against stored FACTS — a symmetric,
 passage-to-passage comparison — so the candidate is embedded as a PASSAGE, not a
-query. (embed_query is tuned for questions; on an asymmetric embedder like Jina,
+query. (embed_query is tuned for questions; on an asymmetric embedder,
 using it here collapses same-attribute similarity to noise. The READ path uses
 embed_query, because there the input really is a question.)
 """
