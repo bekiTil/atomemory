@@ -8,6 +8,7 @@ endpoint (Azure OpenAI, local servers, proxies).
 from __future__ import annotations
 
 import json
+import warnings
 import urllib.error
 import urllib.request
 
@@ -64,6 +65,22 @@ class OpenAILLM:
             payload = json.loads(request_bytes(req).decode("utf-8"))
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "replace")[:300]
+            # Some models (e.g. OpenAI reasoning models) reject `temperature`.
+            # React to what the API actually says rather than guessing from
+            # model names, and retry ONCE without it. Never silent: warn.
+            if e.code == 400 and "temperature" in detail.lower() and "temperature" in body:
+                warnings.warn(
+                    f"OpenAI rejected temperature={body['temperature']} for model "
+                    f"{self.model!r}; retrying without it.",
+                    RuntimeWarning, stacklevel=2,
+                )
+                body.pop("temperature")
+                retry = urllib.request.Request(
+                    req.full_url, data=json.dumps(body).encode("utf-8"),
+                    method="POST", headers=dict(req.headers),
+                )
+                payload = json.loads(request_bytes(retry).decode("utf-8"))
+                return payload["choices"][0]["message"]["content"]
             raise RuntimeError(f"OpenAI request failed: {e.code} {e.reason} — {detail}") from e
         return payload["choices"][0]["message"]["content"]
 

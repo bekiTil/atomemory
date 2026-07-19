@@ -29,6 +29,13 @@ class AnthropicLLM:
                 "AnthropicLLM requires an API key. Set LLM_API_KEY, or use "
                 "LLM_BACKEND=fake to run offline."
             )
+        # Anthropic accepts 0.0-1.0 (OpenAI allows 0-2). Fail here rather than
+        # letting the user discover it as a 400 mid-run.
+        if temperature is not None and not 0.0 <= temperature <= 1.0:
+            raise ValueError(
+                f"AnthropicLLM temperature must be between 0.0 and 1.0 "
+                f"(got {temperature}). OpenAI's 0-2 range does not apply here."
+            )
         self.api_key = api_key
         self.model = model
         self.max_tokens = max_tokens
