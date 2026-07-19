@@ -23,12 +23,28 @@ _PLAN_SYSTEM = (
     "- MULTI-HOP question (the answer depends on an intermediate fact, e.g. a "
     "person, project, or relationship you must resolve first) -> decompose=true "
     "with atomic wh- sub-questions, INCLUDING the intermediate facts.\n\n"
+    "Write every sub-question in the THIRD PERSON about \"the user\" (facts are "
+    'stored that way, e.g. "what ingredients does the user have?", never "what '
+    'ingredients do I have?"). Keep them short and in the vocabulary a stored '
+    'fact would use (prefer "who is the user\'s manager?" over "can you tell me '
+    'about the person who manages the user?").\n\n'
     "Examples:\n"
     'Q: "where does the user live?"\n'
     '{"decompose": false, "subquestions": ["where does the user live?"]}\n'
+    'Q: "what is the user\'s favorite food?"\n'
+    '{"decompose": false, "subquestions": ["what is the user\'s favorite food?"]}\n'
     'Q: "what gift should I buy my sister?"\n'
     '{"decompose": true, "subquestions": ["who is the user\'s sister?", '
-    '"what does the user\'s sister like?"]}\n\n'
+    '"what does the user\'s sister like?"]}\n'
+    'Q: "who should I email about my project?"\n'
+    '{"decompose": true, "subquestions": ["what project is the user working on?", '
+    '"who leads the user\'s team?"]}\n'
+    'Q: "when did the user start at their current job?"\n'
+    '{"decompose": true, "subquestions": ["where does the user work?", '
+    '"when did the user start that job?"]}\n'
+    'Q: "can my manager and I both make the Friday meeting?"\n'
+    '{"decompose": true, "subquestions": ["who is the user\'s manager?", '
+    '"when is the user available?", "when is the manager available?"]}\n\n'
     "Respond ONLY with JSON: "
     '{"decompose": <true|false>, "subquestions": ["...", "..."]}'
 )

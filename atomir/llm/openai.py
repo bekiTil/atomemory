@@ -19,7 +19,8 @@ _USER_AGENT = "atomir/0.2"
 
 
 class OpenAILLM:
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini", base_url: str = "") -> None:
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini", base_url: str = "",
+                 temperature: float | None = None) -> None:
         if not api_key:
             raise ValueError(
                 "OpenAILLM requires an API key. Set LLM_API_KEY, or use "
@@ -27,6 +28,7 @@ class OpenAILLM:
             )
         self.api_key = api_key
         self.model = model
+        self.temperature = temperature
         self.url = (base_url.rstrip("/") if base_url else _DEFAULT_BASE) + "/chat/completions"
 
     @classmethod
@@ -35,6 +37,7 @@ class OpenAILLM:
             api_key=config.get("api_key", ""),
             model=config.get("model", "gpt-4o-mini"),
             base_url=config.get("base_url", ""),
+            temperature=config.get("temperature"),
         )
 
     def _chat(self, system: str, user: str, json_mode: bool) -> str:
@@ -45,6 +48,8 @@ class OpenAILLM:
                 {"role": "user", "content": user},
             ],
         }
+        if self.temperature is not None:
+            body["temperature"] = self.temperature
         if json_mode:
             body["response_format"] = {"type": "json_object"}
         req = urllib.request.Request(

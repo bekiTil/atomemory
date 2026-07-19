@@ -41,6 +41,8 @@ class Settings:
     model: str = field(default_factory=lambda: _env("MODEL", "llama-3.3-70b-versatile"))
     # Optional override of the LLM endpoint (self-host, proxy, local Ollama).
     llm_base_url: str = field(default_factory=lambda: _env("LLM_BASE_URL"))
+    # Unset = the provider's own default. 0 = greedy/deterministic decoding.
+    llm_temperature: str = field(default_factory=lambda: _env("LLM_TEMPERATURE"))
 
     # --- Embedder slot ----------------------------------------------------
     # Same neutrality: `jina` is the first example, but nothing here names it.
@@ -86,6 +88,9 @@ class Settings:
                 "api_key": self.llm_api_key,
                 "model": self.model,
                 "base_url": self.llm_base_url,
+                "temperature": (
+                    float(self.llm_temperature) if self.llm_temperature else None
+                ),
             },
         }
 
