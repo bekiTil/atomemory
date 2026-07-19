@@ -18,8 +18,10 @@ _DEFAULT_BASE = "http://localhost:11434"
 
 
 class OllamaLLM:
-    def __init__(self, model: str = "llama3.1", base_url: str = "") -> None:
+    def __init__(self, model: str = "llama3.1", base_url: str = "",
+                 temperature: float | None = None) -> None:
         self.model = model
+        self.temperature = temperature
         self.url = (base_url.rstrip("/") if base_url else _DEFAULT_BASE) + "/api/chat"
 
     @classmethod
@@ -27,6 +29,7 @@ class OllamaLLM:
         return cls(
             model=config.get("model", "llama3.1"),
             base_url=config.get("base_url", ""),
+            temperature=config.get("temperature"),
         )
 
     def _chat(self, system: str, user: str, json_mode: bool) -> str:
@@ -38,6 +41,8 @@ class OllamaLLM:
             ],
             "stream": False,
         }
+        if self.temperature is not None:
+            body["options"] = {"temperature": self.temperature}
         if json_mode:
             body["format"] = "json"
         req = urllib.request.Request(

@@ -22,7 +22,8 @@ _USER_AGENT = "atomir/0.2"
 
 class AnthropicLLM:
     def __init__(self, api_key: str, model: str = "claude-haiku-4-5-20251001",
-                 base_url: str = "", max_tokens: int = 1024) -> None:
+                 base_url: str = "", max_tokens: int = 1024,
+                 temperature: float | None = None) -> None:
         if not api_key:
             raise ValueError(
                 "AnthropicLLM requires an API key. Set LLM_API_KEY, or use "
@@ -31,6 +32,7 @@ class AnthropicLLM:
         self.api_key = api_key
         self.model = model
         self.max_tokens = max_tokens
+        self.temperature = temperature
         self.url = base_url.rstrip("/") if base_url else _ANTHROPIC_URL
 
     @classmethod
@@ -39,6 +41,7 @@ class AnthropicLLM:
             api_key=config.get("api_key", ""),
             model=config.get("model", "claude-haiku-4-5-20251001"),
             base_url=config.get("base_url", ""),
+            temperature=config.get("temperature"),
         )
 
     def _chat(self, system: str, user: str) -> str:
@@ -48,6 +51,8 @@ class AnthropicLLM:
             "system": system,
             "messages": [{"role": "user", "content": user}],
         }
+        if self.temperature is not None:
+            body["temperature"] = self.temperature
         req = urllib.request.Request(
             self.url, data=json.dumps(body).encode("utf-8"), method="POST",
             headers={

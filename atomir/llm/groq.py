@@ -25,7 +25,8 @@ _USER_AGENT = "atomir/0.1"
 class GroqLLM(LLM):
     """Calls the Groq chat API. Requires an API key."""
 
-    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile") -> None:
+    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile",
+                 temperature: float | None = None) -> None:
         if not api_key:
             raise ValueError(
                 "GroqLLM requires an API key. Set LLM_API_KEY, or use "
@@ -33,12 +34,14 @@ class GroqLLM(LLM):
             )
         self.api_key = api_key
         self.model = model
+        self.temperature = temperature
 
     @classmethod
     def from_config(cls, config: dict) -> "GroqLLM":
         return cls(
             api_key=config.get("api_key", ""),
             model=config.get("model", "llama-3.3-70b-versatile"),
+            temperature=config.get("temperature"),
         )
 
     def _chat(self, system: str, user: str, json_mode: bool) -> str:
@@ -49,6 +52,8 @@ class GroqLLM(LLM):
                 {"role": "user", "content": user},
             ],
         }
+        if self.temperature is not None:
+            body["temperature"] = self.temperature
         if json_mode:
             body["response_format"] = {"type": "json_object"}
         req = urllib.request.Request(
