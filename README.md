@@ -84,6 +84,28 @@ g.add_node("remember", remember_node(mem))   # stores state["input"]
 Agents coordinate through shared memory (persists across runs). Store durable
 findings only. Runnable examples: [`examples/`](examples/).
 
+## Claude / MCP
+
+`pip install "atomir[mcp]"` exposes atomir as an MCP server, giving Claude
+Desktop, Claude Code, Cursor, or any MCP client persistent memory. Add to the
+client's MCP config:
+
+```json
+"mcpServers": {
+  "atomir": {
+    "command": "atomir-mcp",
+    "env": {
+      "LLM_BACKEND": "openai", "LLM_API_KEY": "sk-...",
+      "EMBED_BACKEND": "openai", "EMBED_API_KEY": "sk-...", "EMBED_DIM": "1536",
+      "STORE_BACKEND": "json", "STORE_PATH": "/absolute/path/atomir-memory.json"
+    }
+  }
+}
+```
+
+Claude then has four tools — `remember`, `recall`, `list_memories`, `forget` —
+and carries memory across sessions. `ATOMIR_USER` namespaces the memory.
+
 ## HTTP API
 
 Run `uvicorn atomir.api:app` (or `docker compose up`). `MemoryClient(url)` wraps
