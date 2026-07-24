@@ -8,6 +8,8 @@ score kept). Vendor-neutral: imports ONLY the injected interfaces.
 
 from __future__ import annotations
 
+import re
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
 from atomir.providers.embedder_base import Embedder
@@ -50,18 +52,92 @@ _PLAN_SYSTEM = (
 )
 
 
-def plan(llm: LLM, query: str) -> dict:
-    """Decide whether/how to decompose `query`. Always returns >=1 subquestion."""
+_FILLER = re.compile(
+    r"\b(please|kindly|can you|could you|would you|tell me|"
+    r"i want to know|i would like to know|do you know)\b"
+)
+
+
+def canonical_query(query: str) -> str:
+    """Normal form used as the plan cache key: lowercased, filler and
+    punctuation stripped, whitespace collapsed. Deliberately conservative so
+    two genuinely different questions never collide onto the same key."""
+    q = _FILLER.sub(" ", query.lower())
+    q = re.sub(r"[^\w\s]", " ", q)
+    return re.sub(r"\s+", " ", q).strip()
+
+
+def _canonical_subqs(subs: list[str]) -> list[str]:
+    """Trim, collapse whitespace, and drop case-insensitive duplicates."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for s in subs:
+        s = re.sub(r"\s+", " ", s.strip())
+        key = s.lower()
+        if s and key not in seen:
+            seen.add(key)
+            out.append(s)
+    return out
+
+
+class PlanCache:
+    """Bounded LRU of canonical_query -> plan. Decomposition depends only on the
+    query text (not the user or the store), so entries are shared safely."""
+
+    def __init__(self, maxsize: int = 512) -> None:
+        self.maxsize = maxsize
+        self._d: "OrderedDict[str, dict]" = OrderedDict()
+
+    def get(self, key: str) -> dict | None:
+        if key in self._d:
+            self._d.move_to_end(key)
+            return self._d[key]
+        return None
+
+    def put(self, key: str, value: dict) -> None:
+        self._d[key] = value
+        self._d.move_to_end(key)
+        while len(self._d) > self.maxsize:
+            self._d.popitem(last=False)
+
+    def clear(self) -> None:
+        self._d.clear()
+
+
+_PLAN_CACHE = PlanCache()
+
+
+def _copy_plan(p: dict) -> dict:
+    # Return a copy so callers can never mutate a cached entry in place.
+    return {"decompose": p["decompose"], "subquestions": list(p["subquestions"])}
+
+
+def _plan_llm(llm: LLM, query: str) -> dict:
     result = llm.chat_json(_PLAN_SYSTEM, query)
     decompose = bool(result.get("decompose", False))
-    subs = [
-        s.strip()
-        for s in (result.get("subquestions") or [])
-        if isinstance(s, str) and s.strip()
-    ]
+    subs = _canonical_subqs(
+        [s for s in (result.get("subquestions") or []) if isinstance(s, str)]
+    )
     if not subs:  # planner gave nothing usable -> fall back to the raw query
         subs, decompose = [query], False
     return {"decompose": decompose, "subquestions": subs}
+
+
+def plan(llm: LLM, query: str, *, cache: bool = True) -> dict:
+    """Decide whether/how to decompose `query`. Always returns >=1 subquestion.
+
+    With `cache` (default), the plan is memoized by canonical query form, so a
+    repeated query skips the planner LLM call entirely — 0ms and deterministic.
+    """
+    key = canonical_query(query) if cache else ""
+    if key:
+        hit = _PLAN_CACHE.get(key)
+        if hit is not None:
+            return _copy_plan(hit)
+    result = _plan_llm(llm, query)
+    if key:
+        _PLAN_CACHE.put(key, _copy_plan(result))
+    return result
 
 
 def atomic_search(
@@ -74,6 +150,7 @@ def atomic_search(
     decompose: bool = True,
     hybrid: bool = True,
     corpus_limit: int = 5000,
+    cache_plans: bool = True,
 ) -> dict:
     """Retrieve facts for `query`, decomposing into sub-questions when useful.
 
@@ -91,7 +168,7 @@ def atomic_search(
     prefetched: dict[str, list[float]] = {}
     if decompose:
         with ThreadPoolExecutor(max_workers=2) as ex:
-            fut_plan = ex.submit(plan, llm, query)
+            fut_plan = ex.submit(plan, llm, query, cache=cache_plans)
             fut_emb = ex.submit(embedder.embed_query, query)
             subquestions = fut_plan.result()["subquestions"]
             try:

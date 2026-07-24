@@ -33,12 +33,14 @@ class MemoryService:
         *,
         reconcile_min_sim: float = 0.6,
         hybrid_search: bool = True,
+        cache_plans: bool = True,
     ) -> None:
         self.store = store
         self.llm = llm
         self.embedder = embedder
         self.reconcile_min_sim = reconcile_min_sim
         self.hybrid_search = hybrid_search
+        self.cache_plans = cache_plans
         # Serializes a single user's writes (reconcile is read-modify-write);
         # DECISION #5: simple per-user lock now, full transactions deferred.
         self._locks = KeyedLock()
@@ -71,6 +73,7 @@ class MemoryService:
         return atomic_search(
             self.store, self.llm, self.embedder, user_id, query, k=k,
             decompose=decompose, hybrid=self.hybrid_search,
+            cache_plans=self.cache_plans,
         )
 
     def answer(

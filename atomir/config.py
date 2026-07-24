@@ -58,6 +58,10 @@ class Settings:
     hybrid_search: bool = field(
         default_factory=lambda: _env("HYBRID_SEARCH", "true").lower() != "false"
     )
+    # Cache query decompositions (LRU) so repeat queries skip the planner call.
+    plan_cache: bool = field(
+        default_factory=lambda: _env("PLAN_CACHE", "true").lower() != "false"
+    )
 
     # --- Reconciler tuning ------------------------------------------------
     # Write-side similarity gate (DECISION #1a): a candidate whose nearest

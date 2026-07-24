@@ -39,4 +39,4 @@ def build_memory_service(s: Settings = default_settings) -> MemoryService:
     embedder = EmbedderFactory.create(s.embedder)
     store = _build_store(s)
     return MemoryService(store, llm, embedder, reconcile_min_sim=s.reconcile_min_sim,
-                         hybrid_search=s.hybrid_search)
+                         hybrid_search=s.hybrid_search, cache_plans=s.plan_cache)
